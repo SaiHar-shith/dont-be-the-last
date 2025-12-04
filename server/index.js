@@ -5,16 +5,21 @@ const cors = require("cors");
 const { Server } = require("socket.io");
 
 const app = express();
-app.use(cors());
+// Allow connections from anywhere (Vercel)
+app.use(cors({ origin: "*" }));
 
 const server = http.createServer(app);
+
+// Update Socket.io CORS to allow external connections
 const io = new Server(server, {
-  cors: { origin: "*", methods: ["GET", "POST"] },
+  cors: {
+    origin: "*", 
+    methods: ["GET", "POST"]
+  },
 });
 
-// --- General Knowledge question bank (open-ended + true/false) ---
+// --- General Knowledge question bank ---
 const questions = [
-  // Open-ended questions (type: "open")
   { type: "open", question: "What is the capital city of France?", answer: "paris" },
   { type: "open", question: "Which element has the chemical symbol 'O'?", answer: "oxygen" },
   { type: "open", question: "What is 7 multiplied by 8?", answer: "56" },
@@ -35,40 +40,6 @@ const questions = [
   { type: "open", question: "Which country has the Great Pyramid of Giza?", answer: "egypt" },
   { type: "open", question: "What is the capital of India?", answer: "new delhi" },
   { type: "open", question: "Which instrument has 88 keys?", answer: "piano" },
-  { type: "open", question: "What is the smallest prime number?", answer: "2" },
-  { type: "open", question: "What is the hardest natural material on Earth?", answer: "diamond" },
-  { type: "open", question: "Which metal is liquid at room temperature?", answer: "mercury" },
-  { type: "open", question: "What is the tallest mountain in the world (above sea level)?", answer: "mount everest" },
-  { type: "open", question: "Which organ pumps blood around the body?", answer: "heart" },
-  { type: "open", question: "Which planet has rings around it?", answer: "saturn" },
-  { type: "open", question: "Who developed the theory of relativity?", answer: "albert einstein" },
-  { type: "open", question: "What is the capital of the United Kingdom?", answer: "london" },
-  { type: "open", question: "In computing, what does 'CPU' stand for?", answer: "central processing unit" },
-  { type: "open", question: "What is the largest desert in the world (non-polar)?", answer: "sahara" },
-  { type: "open", question: "Which animal is known as the 'king of the jungle'?", answer: "lion" },
-  { type: "open", question: "How many degrees are in a right angle?", answer: "90" },
-  { type: "open", question: "What is the capital city of Germany?", answer: "berlin" },
-  { type: "open", question: "What is the chemical symbol for gold?", answer: "au" },
-  { type: "open", question: "Which continent is India part of?", answer: "asia" },
-  { type: "open", question: "Which bird is often associated with delivering babies in folklore?", answer: "stork" },
-  { type: "open", question: "What is the capital of Canada?", answer: "ottawa" },
-  { type: "open", question: "Which famous scientist is known for gravity and the laws of motion?", answer: "isaac newton" },
-  { type: "open", question: "What is 100 divided by 4?", answer: "25" },
-  { type: "open", question: "Which city is famous for the Eiffel Tower?", answer: "paris" },
-  { type: "open", question: "What substance do bees produce?", answer: "honey" },
-  { type: "open", question: "What is the largest planet in our solar system?", answer: "jupiter" },
-  { type: "open", question: "Which country is known for pizza and pasta?", answer: "italy" },
-  { type: "open", question: "What is the currency of the United States?", answer: "us dollar" },
-  { type: "open", question: "Which sea creature has eight arms?", answer: "octopus" },
-  { type: "open", question: "Who is the author of 'Harry Potter' series?", answer: "j.k. rowling" },
-  { type: "open", question: "Which device do we use to look at stars?", answer: "telescope" },
-  { type: "open", question: "What does DNA stand for?", answer: "deoxyribonucleic acid" },
-  { type: "open", question: "Which country is famous for the pyramids and the Nile?", answer: "egypt" },
-  { type: "open", question: "What is the fastest land animal?", answer: "cheetah" },
-  { type: "open", question: "What is the capital of Australia?", answer: "canberra" },
-  { type: "open", question: "What liquid do plants take up through their roots?", answer: "water" },
-
-  // True/False questions (type: "tf")
   { type: "tf", question: "The Great Wall of China is visible from space with the naked eye.", answer: "false" },
   { type: "tf", question: "The human adult skeleton has 206 bones.", answer: "true" },
   { type: "tf", question: "Sound travels faster in air than in water.", answer: "false" },
@@ -78,52 +49,13 @@ const questions = [
   { type: "tf", question: "Venus is the hottest planet in our solar system.", answer: "true" },
   { type: "tf", question: "An octagon has six sides.", answer: "false" },
   { type: "tf", question: "Shakespeare wrote 'Hamlet'.", answer: "true" },
-  { type: "tf", question: "The capital of Japan is Kyoto.", answer: "false" },
-  { type: "tf", question: "Water boils at 100 degrees Celsius at sea level.", answer: "true" },
-  { type: "tf", question: "Gold is heavier than silver for the same volume.", answer: "true" },
-  { type: "tf", question: "The Amazon is the longest river in the world.", answer: "false" },
-  { type: "tf", question: "Pluto is still classified as a planet.", answer: "false" },
-  { type: "tf", question: "The human heart has four chambers.", answer: "true" },
-  { type: "tf", question: "Mount Kilimanjaro is in South America.", answer: "false" },
-  { type: "tf", question: "A light year measures time.", answer: "false" },
-  { type: "tf", question: "The Taj Mahal is in India.", answer: "true" },
-  { type: "tf", question: "Penguins can fly.", answer: "false" },
-  { type: "tf", question: "The Sahara is a desert.", answer: "true" },
-  { type: "tf", question: "Sound can travel through a vacuum.", answer: "false" },
-  { type: "tf", question: "Tomatoes are classified as a fruit.", answer: "true" },
-  { type: "tf", question: "Albert Einstein won the Nobel Prize for relativity.", answer: "false" },
-  { type: "tf", question: "Humans share about 50% of their DNA with bananas.", answer: "true" },
-  { type: "tf", question: "There are 24 hours in a day.", answer: "true" },
-
-  // A few more open-ended to round out the set
-  { type: "open", question: "Which gas makes up most of the Earth's atmosphere?", answer: "nitrogen" },
-  { type: "open", question: "Which country gifted the Statue of Liberty to the USA?", answer: "france" },
-  { type: "open", question: "Who was the first person to walk on the moon?", answer: "neil armstrong" },
-  { type: "open", question: "Which chemical element has the symbol 'Fe'?", answer: "iron" },
-  { type: "open", question: "What is the primary language spoken in Argentina?", answer: "spanish" },
-  { type: "open", question: "Which city hosted the 2016 Summer Olympics?", answer: "rio de janeiro" },
-  { type: "open", question: "What is the main ingredient in guacamole?", answer: "avocado" },
-  { type: "open", question: "How many players are there in a soccer team on the field (per side)?", answer: "11" },
-  { type: "open", question: "What is the shape of Earth?", answer: "oblate spheroid" },
-  { type: "open", question: "Which element is essential for breathing and making up about 21% of Earth's atmosphere?", answer: "oxygen" }
+  { type: "tf", question: "The capital of Japan is Kyoto.", answer: "false" }
 ];
-
 
 // helper utilities
 const pickRandom = (arr) => arr[Math.floor(Math.random() * arr.length)];
 const normalize = (s) => String(s || "").trim().toLowerCase();
 
-// rooms store
-// rooms[roomCode] = {
-//   players: [{ id, name }],
-//   alive: [socketId, ...],
-//   nameById: { socketId: name, ... },
-//   hostId: socketId,
-//   holderId: socketId || null,
-//   intervalId: NodeJS.Timer | null,
-//   remaining: number,
-//   currentQuestion: { question, answer } | null
-// }
 const rooms = Object.create(null);
 
 // Broadcast helper
@@ -135,8 +67,7 @@ function emitRoomPlayers(room) {
 function emitAlivePlayers(room) {
   if (!rooms[room]) return;
   const aliveNames = rooms[room].alive.map((id) => rooms[room].nameById[id]).filter(Boolean);
-  io.to(room).emit("player-eliminated", { player: null, alivePlayers: aliveNames }); // maintain compatibility
-  // also emit a dedicated alive list event
+  io.to(room).emit("player-eliminated", { player: null, alivePlayers: aliveNames }); 
   io.to(room).emit("alive-players", aliveNames);
 }
 
@@ -153,7 +84,7 @@ function askQuestion(room, holderId) {
   const q = pickRandom(questions);
   rooms[room].currentQuestion = q;
   rooms[room].holderId = holderId;
-  rooms[room].remaining = 8;
+  rooms[room].remaining = 8; // Reset timer to 8 seconds
 
   const holderName = rooms[room].nameById[holderId] || "";
 
@@ -192,12 +123,10 @@ function passBomb(room, currentHolderId) {
   const R = rooms[room];
   const others = R.alive.filter((id) => id !== currentHolderId);
   if (others.length === 0) {
-    // no other to pass to
     return;
   }
   const nextId = pickRandom(others);
 
-  // clear any existing interval
   if (R.intervalId) {
     clearInterval(R.intervalId);
     R.intervalId = null;
@@ -215,7 +144,6 @@ function eliminateHolder(room) {
 
   const eliminatedName = R.nameById[eliminatedId];
 
-  // clear any running timer for this room
   if (R.intervalId) {
     clearInterval(R.intervalId);
     R.intervalId = null;
@@ -236,7 +164,6 @@ function eliminateHolder(room) {
   if (R.alive.length === 1) {
     const winnerName = R.nameById[R.alive[0]];
     io.to(room).emit("game-over", { winner: winnerName });
-    // clear interval cleanup if exists
     if (R.intervalId) {
       clearInterval(R.intervalId);
       R.intervalId = null;
@@ -294,17 +221,14 @@ io.on("connection", (socket) => {
   socket.on("start-game", (room) => {
     const R = rooms[room];
     if (!R) return;
-    if (R.players.length < 2) return; // need at least 2
-    // only host can start (optional)
+    if (R.players.length < 2) return;
     if (socket.id !== R.hostId) return;
 
-    // announce game-started
     io.to(room).emit("game-started", {
       starter: R.nameById[R.alive[0]],
       alivePlayers: R.alive.map((id) => R.nameById[id]),
     });
 
-    // pick starter randomly and start asking
     const starterId = pickRandom(R.alive);
     askQuestion(room, starterId);
   });
@@ -314,11 +238,9 @@ io.on("connection", (socket) => {
     if (!R) return;
     if (!R.currentQuestion) return;
 
-    // ensure the player sending is the holder
     const holderName = R.holderId ? R.nameById[R.holderId] : null;
     if (holderName !== player) return;
 
-    // stop timer
     if (R.intervalId) {
       clearInterval(R.intervalId);
       R.intervalId = null;
@@ -327,26 +249,21 @@ io.on("connection", (socket) => {
     const correct = normalize(answer) === normalize(R.currentQuestion.answer);
 
     if (correct) {
-      // pass bomb to another alive player
       passBomb(room, R.holderId);
     } else {
-      // wrong => eliminate holder
       eliminateHolder(room);
     }
   });
 
   socket.on("disconnect", () => {
-    // Remove user from any rooms they were in
     for (const room of Object.keys(rooms)) {
       const R = rooms[room];
       if (!R.nameById[socket.id]) continue;
 
-      // remove from players & alive & nameById
       R.players = R.players.filter((p) => p.id !== socket.id);
       R.alive = R.alive.filter((id) => id !== socket.id);
       delete R.nameById[socket.id];
 
-      // if holder left, handle it
       if (R.holderId === socket.id) {
         if (R.intervalId) { clearInterval(R.intervalId); R.intervalId = null; }
         if (R.alive.length === 1) {
@@ -365,6 +282,6 @@ io.on("connection", (socket) => {
   });
 });
 
-// In your server.js or index.js
-const PORT = process.env.PORT || 5000; // Render will provide the PORT automatically
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+const PORT = process.env.PORT || 5000;
+// --- FIX 2: Use server.listen instead of app.listen ---
+server.listen(PORT, () => console.log(`Server running on port ${PORT}`));

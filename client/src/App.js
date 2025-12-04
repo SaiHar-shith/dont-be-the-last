@@ -1,16 +1,14 @@
-// src/App.js
 import React, { useEffect, useRef, useState } from "react";
 import { io } from "socket.io-client";
 
-// point to the server above
-const cors = require('cors');
-app.use(cors({
-    origin: [
-        "http://localhost:3000",
-        //"https://dont-be-the-last.vercel.app" // You will get this URL later, but you can add it now conceptually
-    ],
-    credentials: true
-}));
+// --- FIX 1: Point to the backend environment variable ---
+// If we are on Vercel, use the environment variable. 
+// If we are local, use localhost:5000.
+const SOCKET_URL = process.env.REACT_APP_SERVER_URL || "http://localhost:5000";
+
+const socket = io(SOCKET_URL, {
+    transports: ['websocket'] // Forces modern connection, helps with Render
+});
 
 export default function App() {
   const [name, setName] = useState("");
@@ -24,7 +22,7 @@ export default function App() {
   const [question, setQuestion] = useState(null);
   const [answerInput, setAnswerInput] = useState("");
 
-  const timedRef = useRef(null); // not used for countdown (server-driven), but used to clear local if needed
+  const timedRef = useRef(null);
 
   useEffect(() => {
     // room players list
@@ -32,7 +30,7 @@ export default function App() {
       setPlayers(Array.isArray(list) ? list : []);
     });
 
-    // alive players list (emitted after each elimination / join)
+    // alive players list
     socket.on("alive-players", (names) => {
       setAlivePlayers(Array.isArray(names) ? names : []);
     });
@@ -45,41 +43,38 @@ export default function App() {
       setTimer(0);
     });
 
-    // new question (object: { question })
+    // new question
     socket.on("new-question", ({ question }) => {
       setQuestion({ question });
       setAnswerInput("");
     });
 
-    // bomb-updated -> current holder name
+    // bomb-updated
     socket.on("bomb-updated", ({ currentPlayer }) => {
       setCurrentPlayer(currentPlayer);
     });
 
-    // bomb-timer -> { currentPlayer, time }
+    // bomb-timer
     socket.on("bomb-timer", ({ currentPlayer, time }) => {
       setCurrentPlayer(currentPlayer);
       setTimer(time);
     });
 
-    // player eliminated event
+    // player eliminated
     socket.on("player-eliminated", ({ player, alivePlayers }) => {
       if (player) {
-        // notify
         if (player === name) {
           alert("You were eliminated!");
         } else {
-          // small info toast (alert for simplicity)
           console.log(`${player} eliminated`);
         }
       }
       setAlivePlayers(Array.isArray(alivePlayers) ? alivePlayers : []);
     });
 
-    // game-over -> { winner }
+    // game-over
     socket.on("game-over", ({ winner }) => {
       alert(`🎉 Game over! Winner: ${winner}`);
-      // reset UI to lobby
       setInLobby(true);
       setPlayers([]);
       setAlivePlayers([]);
@@ -89,7 +84,6 @@ export default function App() {
       setAnswerInput("");
     });
 
-    // cleanup on unmount
     return () => {
       socket.off("room-players");
       socket.off("alive-players");
