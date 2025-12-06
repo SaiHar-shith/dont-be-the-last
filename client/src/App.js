@@ -19,18 +19,18 @@ export default function App() {
   const [question, setQuestion] = useState(null);
   const [answerInput, setAnswerInput] = useState("");
 
-  // --- NEW: Notification State ---
-  const [notification, setNotification] = useState(null); // { message: "", type: "danger" | "success" | "info" }
+  // Notification State
+  const [notification, setNotification] = useState(null);
 
   const timedRef = useRef(null);
 
-  // --- NEW: Helper to show notification and hide it after 3 seconds ---
+  // Helper to show notification
   const showToast = (message, type = "info") => {
     setNotification({ message, type });
-    // Clear notification after 3 seconds
+    // Clear notification after 4 seconds (slightly longer to read the answer)
     setTimeout(() => {
       setNotification(null);
-    }, 3000);
+    }, 4000);
   };
 
   useEffect(() => {
@@ -65,24 +65,27 @@ export default function App() {
       setTimer(time);
     });
 
-    // --- UPDATED: Replaced Alert with Custom Toast ---
-    socket.on("player-eliminated", ({ player, alivePlayers }) => {
+    // --- UPDATED SECTION START ---
+    // Now expecting 'correctAnswer' from the server
+    socket.on("player-eliminated", ({ player, alivePlayers, correctAnswer }) => {
       if (player) {
         if (player === name) {
-          showToast("💥 You were eliminated!", "danger");
+          // If I am eliminated, show me the answer!
+          const ansText = correctAnswer ? ` The answer was: "${correctAnswer}"` : "";
+          showToast(`💥 You were eliminated!${ansText}`, "danger");
         } else {
-          // Optional: Notify when others die, or keep it quiet
-          showToast(`${player} was eliminated!`, "info");
+          // If someone else is eliminated
+          const ansText = correctAnswer ? ` (Answer: ${correctAnswer})` : "";
+          showToast(`${player} was eliminated!${ansText}`, "info");
         }
       }
       setAlivePlayers(Array.isArray(alivePlayers) ? alivePlayers : []);
     });
+    // --- UPDATED SECTION END ---
 
-    // --- UPDATED: Replaced Alert with Custom Toast ---
     socket.on("game-over", ({ winner }) => {
       showToast(`🎉 Game over! Winner: ${winner}`, "success");
       
-      // Small delay before resetting so they can see the message
       setTimeout(() => {
         setInLobby(true);
         setPlayers([]);
@@ -91,7 +94,7 @@ export default function App() {
         setTimer(0);
         setQuestion(null);
         setAnswerInput("");
-      }, 3500);
+      }, 4000);
     });
 
     return () => {
@@ -105,7 +108,7 @@ export default function App() {
       socket.off("game-over");
       if (timedRef.current) clearInterval(timedRef.current);
     };
-  }, [name]); // Dependency on 'name' to check if 'I' was eliminated
+  }, [name]); 
 
   const handleCreate = () => {
     if (!room || !name) return showToast("Enter room and nickname", "info");
@@ -130,7 +133,7 @@ export default function App() {
   return (
     <div className="game-container">
       
-      {/* --- NEW: Notification Component --- */}
+      {/* Notification Component */}
       {notification && (
         <div className={`notification-pop notify-${notification.type}`}>
           {notification.message}
@@ -138,7 +141,7 @@ export default function App() {
       )}
 
       {inLobby ? (
-        // 1. Lobby Screen
+        // Lobby Screen
         <div className="game-card">
           <h2>Don’t Be The Last 💣</h2>
 
@@ -181,7 +184,7 @@ export default function App() {
           )}
         </div>
       ) : (
-        // 2. Game Screen
+        // Game Screen
         <div className="game-card wide">
           <div style={{display:'flex', justifyContent:'space-between', flexWrap:'wrap'}}>
               <span className="status-badge">💣 Bomb: {currentPlayer || "-"}</span>
@@ -199,7 +202,6 @@ export default function App() {
             </ul>
           </div>
 
-          {/* Question Section */}
           {question && currentPlayer === name && (
             <div style={{ marginTop: 24, borderTop:'3px solid #000', paddingTop: 20 }}>
               <div style={{ fontWeight: 800, marginBottom: 12, fontSize: '1.2rem' }}>

@@ -64,12 +64,6 @@ function emitRoomPlayers(room) {
   const names = rooms[room].players.map((p) => p.name);
   io.to(room).emit("room-players", names);
 }
-function emitAlivePlayers(room) {
-  if (!rooms[room]) return;
-  const aliveNames = rooms[room].alive.map((id) => rooms[room].nameById[id]).filter(Boolean);
-  io.to(room).emit("player-eliminated", { player: null, alivePlayers: aliveNames }); 
-  io.to(room).emit("alive-players", aliveNames);
-}
 
 function emitTimer(room) {
   if (!rooms[room]) return;
@@ -144,6 +138,11 @@ function eliminateHolder(room) {
 
   const eliminatedName = R.nameById[eliminatedId];
 
+  // --- UPDATED LOGIC START ---
+  // 1. Capture the correct answer BEFORE clearing the question
+  const rightAnswer = R.currentQuestion ? R.currentQuestion.answer : null;
+  // --- UPDATED LOGIC END ---
+
   if (R.intervalId) {
     clearInterval(R.intervalId);
     R.intervalId = null;
@@ -155,9 +154,15 @@ function eliminateHolder(room) {
   // remove from alive
   R.alive = R.alive.filter((id) => id !== eliminatedId);
 
-  // emit elimination event with alive names
+  // emit elimination event with alive names AND correct answer
   const aliveNames = R.alive.map((id) => R.nameById[id]);
-  io.to(room).emit("player-eliminated", { player: eliminatedName, alivePlayers: aliveNames });
+  
+  io.to(room).emit("player-eliminated", { 
+    player: eliminatedName, 
+    alivePlayers: aliveNames,
+    correctAnswer: rightAnswer // <--- Sending answer to frontend
+  });
+  
   io.to(room).emit("alive-players", aliveNames);
 
   // if only one remains -> game over
@@ -283,5 +288,4 @@ io.on("connection", (socket) => {
 });
 
 const PORT = process.env.PORT || 5000;
-// --- FIX 2: Use server.listen instead of app.listen ---
 server.listen(PORT, () => console.log(`Server running on port ${PORT}`));
