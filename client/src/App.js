@@ -1,7 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { io } from "socket.io-client";
 
-// --- FIX 1: Point to the backend environment variable ---
 const SOCKET_URL = process.env.REACT_APP_SERVER_URL || "http://localhost:5000";
 
 const socket = io(SOCKET_URL, {
@@ -20,7 +19,19 @@ export default function App() {
   const [question, setQuestion] = useState(null);
   const [answerInput, setAnswerInput] = useState("");
 
+  // --- NEW: Notification State ---
+  const [notification, setNotification] = useState(null); // { message: "", type: "danger" | "success" | "info" }
+
   const timedRef = useRef(null);
+
+  // --- NEW: Helper to show notification and hide it after 3 seconds ---
+  const showToast = (message, type = "info") => {
+    setNotification({ message, type });
+    // Clear notification after 3 seconds
+    setTimeout(() => {
+      setNotification(null);
+    }, 3000);
+  };
 
   useEffect(() => {
     socket.on("room-players", (list) => {
@@ -37,6 +48,7 @@ export default function App() {
       setAlivePlayers(alivePlayers || []);
       setQuestion(null);
       setTimer(0);
+      showToast("Game Started! Good luck!", "info");
     });
 
     socket.on("new-question", ({ question }) => {
@@ -53,26 +65,33 @@ export default function App() {
       setTimer(time);
     });
 
+    // --- UPDATED: Replaced Alert with Custom Toast ---
     socket.on("player-eliminated", ({ player, alivePlayers }) => {
       if (player) {
         if (player === name) {
-          alert("You were eliminated!");
+          showToast("💥 You were eliminated!", "danger");
         } else {
-          console.log(`${player} eliminated`);
+          // Optional: Notify when others die, or keep it quiet
+          showToast(`${player} was eliminated!`, "info");
         }
       }
       setAlivePlayers(Array.isArray(alivePlayers) ? alivePlayers : []);
     });
 
+    // --- UPDATED: Replaced Alert with Custom Toast ---
     socket.on("game-over", ({ winner }) => {
-      alert(`🎉 Game over! Winner: ${winner}`);
-      setInLobby(true);
-      setPlayers([]);
-      setAlivePlayers([]);
-      setCurrentPlayer("");
-      setTimer(0);
-      setQuestion(null);
-      setAnswerInput("");
+      showToast(`🎉 Game over! Winner: ${winner}`, "success");
+      
+      // Small delay before resetting so they can see the message
+      setTimeout(() => {
+        setInLobby(true);
+        setPlayers([]);
+        setAlivePlayers([]);
+        setCurrentPlayer("");
+        setTimer(0);
+        setQuestion(null);
+        setAnswerInput("");
+      }, 3500);
     });
 
     return () => {
@@ -86,14 +105,14 @@ export default function App() {
       socket.off("game-over");
       if (timedRef.current) clearInterval(timedRef.current);
     };
-  }, [name]);
+  }, [name]); // Dependency on 'name' to check if 'I' was eliminated
 
   const handleCreate = () => {
-    if (!room || !name) return alert("Enter room and nickname");
+    if (!room || !name) return showToast("Enter room and nickname", "info");
     socket.emit("create-room", { room, name });
   };
   const handleJoin = () => {
-    if (!room || !name) return alert("Enter room and nickname");
+    if (!room || !name) return showToast("Enter room and nickname", "info");
     socket.emit("join-room", { room, name });
   };
 
@@ -108,13 +127,18 @@ export default function App() {
     setAnswerInput("");
   };
 
-  // --- UI RENDER ---
+  return (
+    <div className="game-container">
+      
+      {/* --- NEW: Notification Component --- */}
+      {notification && (
+        <div className={`notification-pop notify-${notification.type}`}>
+          {notification.message}
+        </div>
+      )}
 
-  // 1. Lobby Screen
-  if (inLobby) {
-    const isHost = players.length > 0 && players[0] === name;
-    return (
-      <div className="game-container">
+      {inLobby ? (
+        // 1. Lobby Screen
         <div className="game-card">
           <h2>Don’t Be The Last 💣</h2>
 
@@ -150,61 +174,57 @@ export default function App() {
             )}
           </div>
 
-          {players.length > 1 && isHost && (
+          {players.length > 1 && players[0] === name && (
             <button className="btn-3d btn-red" onClick={handleStart}>
               Start Game
             </button>
           )}
         </div>
-      </div>
-    );
-  }
+      ) : (
+        // 2. Game Screen
+        <div className="game-card wide">
+          <div style={{display:'flex', justifyContent:'space-between', flexWrap:'wrap'}}>
+              <span className="status-badge">💣 Bomb: {currentPlayer || "-"}</span>
+              <span className="status-badge">⏳ Time: {timer}s</span>
+          </div>
 
-  // 2. Game Screen
-  return (
-    <div className="game-container">
-      <div className="game-card wide">
-        <div style={{display:'flex', justifyContent:'space-between', flexWrap:'wrap'}}>
-            <span className="status-badge">💣 Bomb: {currentPlayer || "-"}</span>
-            <span className="status-badge">⏳ Time: {timer}s</span>
-        </div>
+          <div style={{ marginTop: 20 }}>
+            <h4>Alive players</h4>
+            <ul className="player-list">
+              {(alivePlayers || []).map((p) => (
+                  <li key={p} style={{ background: p === currentPlayer ? '#fee2e2' : 'white' }}>
+                      {p} {p === currentPlayer ? '💣' : ''}
+                  </li>
+              ))}
+            </ul>
+          </div>
 
-        <div style={{ marginTop: 20 }}>
-          <h4>Alive players</h4>
-          <ul className="player-list">
-            {(alivePlayers || []).map((p) => (
-                <li key={p} style={{ background: p === currentPlayer ? '#fee2e2' : 'white' }}>
-                    {p} {p === currentPlayer ? '💣' : ''}
-                </li>
-            ))}
-          </ul>
-        </div>
-
-        {/* Question Section */}
-        {question && currentPlayer === name && (
-          <div style={{ marginTop: 24, borderTop:'3px solid #000', paddingTop: 20 }}>
-            <div style={{ fontWeight: 800, marginBottom: 12, fontSize: '1.2rem' }}>
-                {question.question}
+          {/* Question Section */}
+          {question && currentPlayer === name && (
+            <div style={{ marginTop: 24, borderTop:'3px solid #000', paddingTop: 20 }}>
+              <div style={{ fontWeight: 800, marginBottom: 12, fontSize: '1.2rem' }}>
+                  {question.question}
+              </div>
+              <input 
+                  className="input-3d"
+                  value={answerInput} 
+                  onChange={(e) => setAnswerInput(e.target.value)} 
+                  placeholder="Type your answer..." 
+                  autoFocus
+              />
+              <button className="btn-3d btn-green" onClick={handleSubmitAnswer}>
+                  Submit Answer
+              </button>
             </div>
-            <input 
-                className="input-3d"
-                value={answerInput} 
-                onChange={(e) => setAnswerInput(e.target.value)} 
-                placeholder="Type your answer..." 
-                autoFocus
-            />
-            <button className="btn-3d btn-green" onClick={handleSubmitAnswer}>
-                Submit Answer
-            </button>
-          </div>
-        )}
+          )}
 
-        {question && currentPlayer !== name && (
-          <div style={{ marginTop: 24, padding: 20, background: '#f3f4f6', borderRadius: 8, border:'3px solid #000', textAlign:'center', fontStyle: "italic" }}>
-            Waiting for <strong>{currentPlayer}</strong> to answer...
-          </div>
-        )}
-      </div>
+          {question && currentPlayer !== name && (
+            <div style={{ marginTop: 24, padding: 20, background: '#f3f4f6', borderRadius: 8, border:'3px solid #000', textAlign:'center', fontStyle: "italic" }}>
+              Waiting for <strong>{currentPlayer}</strong> to answer...
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
