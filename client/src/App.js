@@ -2,12 +2,10 @@ import React, { useEffect, useRef, useState } from "react";
 import { io } from "socket.io-client";
 
 // --- FIX 1: Point to the backend environment variable ---
-// If we are on Vercel, use the environment variable. 
-// If we are local, use localhost:5000.
 const SOCKET_URL = process.env.REACT_APP_SERVER_URL || "http://localhost:5000";
 
 const socket = io(SOCKET_URL, {
-    transports: ['websocket'] // Forces modern connection, helps with Render
+  transports: ['websocket']
 });
 
 export default function App() {
@@ -25,12 +23,10 @@ export default function App() {
   const timedRef = useRef(null);
 
   useEffect(() => {
-    // room players list
     socket.on("room-players", (list) => {
       setPlayers(Array.isArray(list) ? list : []);
     });
 
-    // alive players list
     socket.on("alive-players", (names) => {
       setAlivePlayers(Array.isArray(names) ? names : []);
     });
@@ -43,24 +39,20 @@ export default function App() {
       setTimer(0);
     });
 
-    // new question
     socket.on("new-question", ({ question }) => {
       setQuestion({ question });
       setAnswerInput("");
     });
 
-    // bomb-updated
     socket.on("bomb-updated", ({ currentPlayer }) => {
       setCurrentPlayer(currentPlayer);
     });
 
-    // bomb-timer
     socket.on("bomb-timer", ({ currentPlayer, time }) => {
       setCurrentPlayer(currentPlayer);
       setTimer(time);
     });
 
-    // player eliminated
     socket.on("player-eliminated", ({ player, alivePlayers }) => {
       if (player) {
         if (player === name) {
@@ -72,7 +64,6 @@ export default function App() {
       setAlivePlayers(Array.isArray(alivePlayers) ? alivePlayers : []);
     });
 
-    // game-over
     socket.on("game-over", ({ winner }) => {
       alert(`🎉 Game over! Winner: ${winner}`);
       setInLobby(true);
@@ -117,59 +108,99 @@ export default function App() {
     setAnswerInput("");
   };
 
-  // UI
+  // --- UI RENDER ---
+
+  // 1. Lobby Screen
   if (inLobby) {
     const isHost = players.length > 0 && players[0] === name;
     return (
-      <div style={{ minHeight: "100vh", display: "grid", placeItems: "center", background: "#fff7cc" }}>
-        <div style={{ width: 360, padding: 20, background: "#fff", borderRadius: 12, boxShadow: "0 8px 30px rgba(0,0,0,.08)" }}>
-          <h2 style={{ textAlign: "center" }}>Don’t Be The Last 💣</h2>
+      <div className="game-container">
+        <div className="game-card">
+          <h2>Don’t Be The Last 💣</h2>
 
-          <input placeholder="Nickname" value={name} onChange={(e) => setName(e.target.value)} style={{ width: "100%", padding: 8, marginTop: 12 }} />
-          <input placeholder="Room Code" value={room} onChange={(e) => setRoom(e.target.value)} style={{ width: "100%", padding: 8, marginTop: 8 }} />
+          <input 
+            className="input-3d"
+            placeholder="Nickname" 
+            value={name} 
+            onChange={(e) => setName(e.target.value)} 
+          />
+          <input 
+            className="input-3d"
+            placeholder="Room Code" 
+            value={room} 
+            onChange={(e) => setRoom(e.target.value)} 
+          />
 
-          <button onClick={handleCreate} style={{ width: "100%", marginTop: 10, padding: 10, background: "#16a34a", color: "#fff" }}>Create Game</button>
-          <button onClick={handleJoin} style={{ width: "100%", marginTop: 8, padding: 10, background: "#2563eb", color: "#fff" }}>Join Game</button>
+          <button className="btn-3d btn-green" onClick={handleCreate}>
+            Create Game
+          </button>
+          
+          <button className="btn-3d btn-blue" onClick={handleJoin}>
+            Join Game
+          </button>
 
-          <div style={{ marginTop: 16 }}>
-            <h4>Players in lobby</h4>
-            <ul>
-              {players.map((p) => <li key={p}>{p}</li>)}
-            </ul>
+          <div style={{ marginTop: 24 }}>
+            <h4>Players in lobby ({players.length})</h4>
+            {players.length > 0 ? (
+                <ul className="player-list">
+                    {players.map((p) => <li key={p}>{p}</li>)}
+                </ul>
+            ) : (
+                <p style={{fontStyle:'italic', color:'#666', textAlign:'center'}}>Waiting for players...</p>
+            )}
           </div>
 
           {players.length > 1 && isHost && (
-            <button onClick={handleStart} style={{ width: "100%", marginTop: 12, padding: 10, background: "#ef4444", color: "#fff" }}>Start Game</button>
+            <button className="btn-3d btn-red" onClick={handleStart}>
+              Start Game
+            </button>
           )}
         </div>
       </div>
     );
   }
 
-  // Game screen
+  // 2. Game Screen
   return (
-    <div style={{ minHeight: "100vh", display: "grid", placeItems: "center", background: "#fee2e2" }}>
-      <div style={{ width: 560, padding: 20, background: "#fff", borderRadius: 12, boxShadow: "0 8px 30px rgba(0,0,0,.08)" }}>
-        <h3>💣 Bomb is with: <strong>{currentPlayer || "-"}</strong></h3>
-        <h4>⏳ Time left: {timer}s</h4>
+    <div className="game-container">
+      <div className="game-card wide">
+        <div style={{display:'flex', justifyContent:'space-between', flexWrap:'wrap'}}>
+            <span className="status-badge">💣 Bomb: {currentPlayer || "-"}</span>
+            <span className="status-badge">⏳ Time: {timer}s</span>
+        </div>
 
-        <div style={{ marginTop: 12 }}>
+        <div style={{ marginTop: 20 }}>
           <h4>Alive players</h4>
-          <ul>
-            {(alivePlayers || []).map((p) => <li key={p}>{p}</li>)}
+          <ul className="player-list">
+            {(alivePlayers || []).map((p) => (
+                <li key={p} style={{ background: p === currentPlayer ? '#fee2e2' : 'white' }}>
+                    {p} {p === currentPlayer ? '💣' : ''}
+                </li>
+            ))}
           </ul>
         </div>
 
+        {/* Question Section */}
         {question && currentPlayer === name && (
-          <div style={{ marginTop: 16 }}>
-            <div style={{ fontWeight: 700, marginBottom: 8 }}>{question.question}</div>
-            <input value={answerInput} onChange={(e) => setAnswerInput(e.target.value)} placeholder="Your answer" style={{ width: "100%", padding: 8 }} />
-            <button onClick={handleSubmitAnswer} style={{ width: "100%", padding: 10, marginTop: 8, background: "#16a34a", color: "#fff" }}>Submit Answer</button>
+          <div style={{ marginTop: 24, borderTop:'3px solid #000', paddingTop: 20 }}>
+            <div style={{ fontWeight: 800, marginBottom: 12, fontSize: '1.2rem' }}>
+                {question.question}
+            </div>
+            <input 
+                className="input-3d"
+                value={answerInput} 
+                onChange={(e) => setAnswerInput(e.target.value)} 
+                placeholder="Type your answer..." 
+                autoFocus
+            />
+            <button className="btn-3d btn-green" onClick={handleSubmitAnswer}>
+                Submit Answer
+            </button>
           </div>
         )}
 
         {question && currentPlayer !== name && (
-          <div style={{ marginTop: 16, fontStyle: "italic" }}>
+          <div style={{ marginTop: 24, padding: 20, background: '#f3f4f6', borderRadius: 8, border:'3px solid #000', textAlign:'center', fontStyle: "italic" }}>
             Waiting for <strong>{currentPlayer}</strong> to answer...
           </div>
         )}
