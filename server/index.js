@@ -5,7 +5,7 @@ const cors = require("cors");
 const { Server } = require("socket.io");
 
 const app = express();
-// Allow connections from anywhere (Vercel)
+// Allow connections from anywhere (Vercel/Render support)
 app.use(cors({ origin: "*" }));
 
 const server = http.createServer(app);
@@ -52,13 +52,13 @@ const questions = [
   { type: "tf", question: "The capital of Japan is Kyoto.", answer: "false" }
 ];
 
-// helper utilities
+// --- Helper Utilities ---
 const pickRandom = (arr) => arr[Math.floor(Math.random() * arr.length)];
 const normalize = (s) => String(s || "").trim().toLowerCase();
 
 const rooms = Object.create(null);
 
-// Broadcast helper
+// --- Broadcast Helpers ---
 function emitRoomPlayers(room) {
   if (!rooms[room]) return;
   const names = rooms[room].players.map((p) => p.name);
@@ -72,115 +72,130 @@ function emitTimer(room) {
   io.to(room).emit("bomb-timer", { currentPlayer: holderName, time });
 }
 
-// Ask question to a specific holder (socket id)
+// --- CORE GAME LOGIC ---
+
+// 1. Ask question to a specific holder
 function askQuestion(room, holderId) {
   if (!rooms[room]) return;
-  const q = pickRandom(questions);
-  rooms[room].currentQuestion = q;
-  rooms[room].holderId = holderId;
-  rooms[room].remaining = 8; // Reset timer to 8 seconds
 
-  const holderName = rooms[room].nameById[holderId] || "";
-
-  // notify
-  io.to(room).emit("bomb-updated", { currentPlayer: holderName });
-  io.to(room).emit("new-question", { question: q.question });
-
-  // clear previous interval if any
+  // IMPORTANT: Clear any existing interval to prevent "double timers"
   if (rooms[room].intervalId) {
     clearInterval(rooms[room].intervalId);
     rooms[room].intervalId = null;
   }
 
-  // start countdown: tick each second and broadcast
+  const q = pickRandom(questions);
+  rooms[room].currentQuestion = q;
+  rooms[room].holderId = holderId;
+  // Set timer to 15 seconds (giving players a bit more time)
+  rooms[room].remaining = 15; 
+
+  const holderName = rooms[room].nameById[holderId] || "Unknown";
+
+  // Notify frontend
+  io.to(room).emit("bomb-updated", { currentPlayer: holderName });
+  io.to(room).emit("new-question", { question: q.question });
+
+  // Start new countdown interval
   rooms[room].intervalId = setInterval(() => {
     const R = rooms[room];
+    // Safety check if room was deleted mid-game
     if (!R) return;
+
     R.remaining -= 1;
     emitTimer(room);
 
+    // If time runs out
     if (R.remaining <= 0) {
       clearInterval(R.intervalId);
       R.intervalId = null;
-      // timeout => eliminate current holder
       eliminateHolder(room);
     }
   }, 1000);
 
-  // Immediately emit initial timer state
+  // Emit initial timer state immediately
   emitTimer(room);
 }
 
-// Pass bomb to random other alive player
+// 2. Pass bomb to random other alive player (Success case)
 function passBomb(room, currentHolderId) {
   if (!rooms[room]) return;
   const R = rooms[room];
-  const others = R.alive.filter((id) => id !== currentHolderId);
-  if (others.length === 0) {
-    return;
-  }
-  const nextId = pickRandom(others);
 
+  // Stop current timer immediately
   if (R.intervalId) {
     clearInterval(R.intervalId);
     R.intervalId = null;
   }
 
+  // Find others who are alive
+  const others = R.alive.filter((id) => id !== currentHolderId);
+
+  // Edge case: If current player is the only one left alive, they win
+  if (others.length === 0) {
+     const winnerName = R.nameById[currentHolderId];
+     io.to(room).emit("game-over", { winner: winnerName });
+     return;
+  }
+
+  // Pick random next player
+  const nextId = pickRandom(others);
   askQuestion(room, nextId);
 }
 
-// Eliminate current holder
+// 3. Eliminate current holder (Timeout or Wrong Answer)
 function eliminateHolder(room) {
   if (!rooms[room]) return;
   const R = rooms[room];
+
+  // Stop current timer
+  if (R.intervalId) {
+    clearInterval(R.intervalId);
+    R.intervalId = null;
+  }
+
   const eliminatedId = R.holderId;
   if (!eliminatedId) return;
 
   const eliminatedName = R.nameById[eliminatedId];
+  // Capture answer before resetting state so we can show it to the user
+  const rightAnswer = R.currentQuestion ? R.currentQuestion.answer : "Unknown";
 
-  // --- UPDATED LOGIC START ---
-  // 1. Capture the correct answer BEFORE clearing the question
-  const rightAnswer = R.currentQuestion ? R.currentQuestion.answer : null;
-  // --- UPDATED LOGIC END ---
-
-  if (R.intervalId) {
-    clearInterval(R.intervalId);
-    R.intervalId = null;
-  }
   R.holderId = null;
   R.currentQuestion = null;
   R.remaining = 0;
 
-  // remove from alive
+  // Remove player from alive list
   R.alive = R.alive.filter((id) => id !== eliminatedId);
-
-  // emit elimination event with alive names AND correct answer
   const aliveNames = R.alive.map((id) => R.nameById[id]);
-  
+
+  // Send elimination event WITH the correct answer
   io.to(room).emit("player-eliminated", { 
     player: eliminatedName, 
     alivePlayers: aliveNames,
-    correctAnswer: rightAnswer // <--- Sending answer to frontend
+    correctAnswer: rightAnswer 
   });
   
   io.to(room).emit("alive-players", aliveNames);
 
-  // if only one remains -> game over
+  // CHECK WIN CONDITION: Only 1 player left
   if (R.alive.length === 1) {
     const winnerName = R.nameById[R.alive[0]];
     io.to(room).emit("game-over", { winner: winnerName });
-    if (R.intervalId) {
-      clearInterval(R.intervalId);
-      R.intervalId = null;
-    }
+    return;
+  } 
+  // CHECK DRAW/EMPTY CONDITION
+  else if (R.alive.length === 0) {
+    io.to(room).emit("game-over", { winner: "Nobody" });
     return;
   }
 
-  // else pick a new holder and ask question
+  // Game continues: Pick new holder from survivors
   const nextHolder = pickRandom(R.alive);
   askQuestion(room, nextHolder);
 }
 
+// --- SOCKET HANDLERS ---
 io.on("connection", (socket) => {
   console.log("Connected:", socket.id);
 
@@ -226,7 +241,9 @@ io.on("connection", (socket) => {
   socket.on("start-game", (room) => {
     const R = rooms[room];
     if (!R) return;
+    // Need at least 2 players to start
     if (R.players.length < 2) return;
+    // Only host can start
     if (socket.id !== R.hostId) return;
 
     io.to(room).emit("game-started", {
@@ -244,13 +261,11 @@ io.on("connection", (socket) => {
     if (!R.currentQuestion) return;
 
     const holderName = R.holderId ? R.nameById[R.holderId] : null;
+    
+    // Security check: ensure only the bomb holder can answer
     if (holderName !== player) return;
 
-    if (R.intervalId) {
-      clearInterval(R.intervalId);
-      R.intervalId = null;
-    }
-
+    // Normalize answer to check correctness
     const correct = normalize(answer) === normalize(R.currentQuestion.answer);
 
     if (correct) {
@@ -265,23 +280,37 @@ io.on("connection", (socket) => {
       const R = rooms[room];
       if (!R.nameById[socket.id]) continue;
 
+      // Remove player data
       R.players = R.players.filter((p) => p.id !== socket.id);
       R.alive = R.alive.filter((id) => id !== socket.id);
       delete R.nameById[socket.id];
 
+      // If the disconnecting player was holding the bomb
       if (R.holderId === socket.id) {
-        if (R.intervalId) { clearInterval(R.intervalId); R.intervalId = null; }
+        if (R.intervalId) { 
+            clearInterval(R.intervalId); 
+            R.intervalId = null; 
+        }
+        
+        // Decide what to do next
         if (R.alive.length === 1) {
           const winner = R.nameById[R.alive[0]];
           io.to(room).emit("game-over", { winner });
         } else if (R.alive.length > 0) {
           const next = pickRandom(R.alive);
           askQuestion(room, next);
+        } else {
+            // Room empty
+            delete rooms[room];
+            return; 
         }
       }
 
       emitRoomPlayers(room);
-      io.to(room).emit("alive-players", R.alive.map((id) => R.nameById[id]));
+      // Only emit alive-players if the room still exists
+      if(rooms[room]) {
+          io.to(room).emit("alive-players", R.alive.map((id) => R.nameById[id]));
+      }
     }
     console.log("Disconnected:", socket.id);
   });
