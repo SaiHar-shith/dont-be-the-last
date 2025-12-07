@@ -193,3 +193,38 @@ h2 {
     opacity: 1;
   }
 }
+/* --- MOBILE OPTIMIZATIONS (iPhone/iOS) --- */
+
+/* Fix 1: Stop iPhone from zooming in when you tap an input */
+@media screen and (max-width: 768px) {
+  .input-3d {
+    font-size: 16px; /* iOS requires 16px to prevent auto-zoom */
+  }
+}
+
+/* Fix 2: Handle the iPhone address bar covering the bottom */
+.game-container {
+  /* Use 'dvh' (dynamic viewport height) so the address bar doesn't cover game content */
+  min-height: 100dvh; 
+}
+
+/* Fallback for older phones that don't support dvh */
+@supports not (height: 100dvh) {
+  .game-container {
+    min-height: 100vh;
+  }
+}
+
+/* Fix 3: Make buttons feel better on touch screens (remove sticky hover) */
+@media (hover: none) {
+  .btn-3d:hover {
+    /* Remove hover effect on mobile so it doesn't get "stuck" */
+    transform: translate(-2px, -2px);
+    box-shadow: 6px 6px 0px #000;
+  }
+  .btn-3d:active {
+    /* Only move when actively tapped */
+    transform: translate(4px, 4px);
+    box-shadow: 0px 0px 0px #000;
+  }
+}
